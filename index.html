@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Blender Triangle with Falling Letters</title>
+  <title>Blender Triangle Following Mouse with Falling Letters</title>
   <style>
     body { margin: 0; overflow: hidden; background: #222; }
     canvas { display: block; }
@@ -23,16 +23,16 @@
             Body   = Matter.Body,
             Common = Matter.Common;
       
-      // Create engine and world.
+      // Create the physics engine and world.
       const engine = Engine.create();
       const world  = engine.world;
       world.gravity.y = 1; // moderate gravity
       
-      // Get the canvas and its drawing context.
+      // Get the canvas and its context.
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
       
-      // Resize canvas to fill the window.
+      // Resize the canvas to fill the window.
       function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -41,6 +41,7 @@
       resizeCanvas();
       
       // --- Ground ---
+      // Create a static ground at the bottom.
       const ground = Bodies.rectangle(canvas.width / 2, canvas.height - 20, canvas.width, 40, { 
         isStatic: true,
         render: { fillStyle: "#888" }
@@ -48,20 +49,24 @@
       World.add(world, ground);
       
       // --- Blender Triangle Setup ---
-      // Create a triangle using Bodies.polygon.
-      // We'll create an equilateral triangle centered at (canvas.width/2, canvas.height/2)
-      // with a given radius.
+      // Create an equilateral triangle using Bodies.polygon.
+      // The triangle is initially centered at (canvas.width/2, canvas.height/2) with a given radius.
       const triangleRadius = 150;
       let triangle = Bodies.polygon(canvas.width / 2, canvas.height / 2, 3, triangleRadius, {
-        isStatic: true,  // We'll control its rotation manually.
+        isStatic: true,  // We'll update its position manually so it follows the mouse.
         render: { fillStyle: "#fff" }
       });
       World.add(world, triangle);
       
-      // Set the rotation speed to twice the baseline.
-      // Here we set the angular speed to 0.1 radians per frame.
+      // Set the rotation speed (twice the baseline).
       let triangleRotation = 0;
-      const angularSpeed = 0.1;  // Radians per frame
+      const angularSpeed = 0.1;  // radians per frame
+      
+      // The triangle follows the mouse cursor.
+      let trianglePos = { x: canvas.width / 2, y: canvas.height / 2 };
+      window.addEventListener("mousemove", function(e) {
+        trianglePos = { x: e.clientX, y: e.clientY };
+      });
       
       // --- Falling Letters ---
       // Helper functions.
@@ -72,7 +77,7 @@
         const colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff", "#ffffff"];
         return colors[Math.floor(Math.random() * colors.length)];
       }
-      // Spawn letters at random x positions at the top.
+      // Spawn letters at random positions at the top.
       function spawnLetter() {
         const letter = randomLetter();
         const size = Common.random(30, 80);
@@ -83,7 +88,6 @@
           friction: 0.1,
           density: 0.001
         });
-        // Give a slight random initial angle.
         Body.setAngle(letterBody, Common.random(-0.3, 0.3));
         letterBody.customData = { letter: letter, size: size, color: randomColor() };
         World.add(world, letterBody);
@@ -98,6 +102,8 @@
         // Update triangle rotation.
         triangleRotation += angularSpeed;
         Body.setAngle(triangle, triangleRotation);
+        // Update triangle position to follow the mouse.
+        Body.setPosition(triangle, trianglePos);
         
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
