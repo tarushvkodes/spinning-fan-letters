@@ -11,10 +11,8 @@
 <body>
   <canvas id="canvas"></canvas>
   
-  <!-- Matter.js physics engine and poly-decomp (for concave bodies if needed) -->
+  <!-- Matter.js physics engine (and poly-decomp if needed) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/poly-decomp/0.3.0/decomp.min.js"></script>
-  
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       // Alias Matter.js modules.
@@ -22,6 +20,7 @@
             World  = Matter.World,
             Bodies = Matter.Bodies,
             Body   = Matter.Body,
+            Composite = Matter.Composite,
             Common = Matter.Common;
       
       // Create the physics engine and world.
@@ -33,7 +32,7 @@
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
       
-      // Resize canvas to fill the window.
+      // Resize the canvas to fill the window.
       function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -50,34 +49,39 @@
       World.add(world, ground);
       
       // --- Blender Fan Setup ---
-      // Create a fan shape with three blades.
-      // We'll make a 3-blade fan by constructing a 6-vertex star.
-      const outerRadius = 100;
-      const innerRadius = 40;
-      const numPoints = 6;  // Alternating outer and inner points give 3 distinct blades.
-      let fanVertices = [];
-      for (let i = 0; i < numPoints; i++) {
-        // Calculate angle for each vertex.
-        const angle = i * (2 * Math.PI / numPoints);
-        // Use outer radius for even indices, inner radius for odd indices.
-        const radius = (i % 2 === 0) ? outerRadius : innerRadius;
-        fanVertices.push({ x: radius * Math.cos(angle), y: radius * Math.sin(angle) });
+      // We'll create 3 distinct blades as rectangles and combine them into one composite body.
+      // Blade parameters:
+      const bladeWidth = 30;
+      const bladeLength = 120;
+      // Each blade will be a rectangle with its center offset so that one edge is at the composite center.
+      // For convenience, create each blade with its center at (0, -bladeLength/2).
+      function createBlade() {
+        return Bodies.rectangle(0, -bladeLength/2, bladeWidth, bladeLength, {
+          chamfer: { radius: 5 }  // Optional: round the corners a little.
+        });
       }
       
-      // Create the fan body near the center of the canvas.
-      // We'll update its position each frame to follow the mouse.
-      // Make it static so it doesn't fall.
-      let fan = Bodies.fromVertices(canvas.width / 2, canvas.height / 2, fanVertices, {
+      // Create three blades.
+      let blade1 = createBlade();
+      let blade2 = Body.rotate(createBlade(), 2 * Math.PI / 3);  // 120° rotation
+      let blade3 = Body.rotate(createBlade(), 4 * Math.PI / 3);  // 240° rotation
+      
+      // Create a composite fan body from the blades.
+      let fan = Body.create({
+        parts: [blade1, blade2, blade3],
         isStatic: true,
         render: { fillStyle: "#fff" }
-      }, true);
+      });
+      
+      // Initially place the fan at the center of the canvas.
+      Body.setPosition(fan, { x: canvas.width / 2, y: canvas.height / 2 });
       World.add(world, fan);
       
-      // Set a slow angular speed for the fan.
+      // Set a faster angular speed for the fan.
       let fanRotation = 0;
-      const fanAngularSpeed = 0.01;  // Slow rotation (radians per frame)
+      const fanAngularSpeed = 0.1;  // Radians per frame
       
-      // Fan will follow the mouse cursor.
+      // The fan follows the mouse cursor.
       let fanPosition = { x: canvas.width / 2, y: canvas.height / 2 };
       window.addEventListener("mousemove", function(e) {
         fanPosition.x = e.clientX;
@@ -118,16 +122,15 @@
         // Update fan rotation and position.
         fanRotation += fanAngularSpeed;
         Body.setAngle(fan, fanRotation);
-        // Update fan position to follow the mouse.
         Body.setPosition(fan, fanPosition);
         
         // Clear the canvas.
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Render each body.
+        // Render all bodies.
         world.bodies.forEach(body => {
-          // Render falling letters.
           if (body.customData && body.customData.letter) {
+            // Render falling letters.
             ctx.save();
             ctx.translate(body.position.x, body.position.y);
             ctx.rotate(body.angle);
@@ -148,7 +151,7 @@
             ctx.closePath();
             ctx.fill();
           } else if (body === fan) {
-            // Render the fan shape as a filled shape.
+            // Render the fan as a filled shape.
             ctx.fillStyle = "#fff";
             ctx.beginPath();
             body.vertices.forEach((v, i) => {
