@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Blender Fan with 3 Blades Following Mouse</title>
+  <title>Blender Triangle with Falling Letters</title>
   <style>
     body { margin: 0; overflow: hidden; background: #222; }
     canvas { display: block; }
@@ -11,8 +11,9 @@
 <body>
   <canvas id="canvas"></canvas>
   
-  <!-- Matter.js physics engine (and poly-decomp if needed) -->
+  <!-- Matter.js physics engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       // Alias Matter.js modules.
@@ -20,19 +21,18 @@
             World  = Matter.World,
             Bodies = Matter.Bodies,
             Body   = Matter.Body,
-            Composite = Matter.Composite,
             Common = Matter.Common;
       
-      // Create the physics engine and world.
+      // Create engine and world.
       const engine = Engine.create();
       const world  = engine.world;
-      world.gravity.y = 1;  // Moderate gravity
+      world.gravity.y = 1; // moderate gravity
       
-      // Get the canvas and its context.
+      // Get the canvas and its drawing context.
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
       
-      // Resize the canvas to fill the window.
+      // Resize canvas to fill the window.
       function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -41,52 +41,27 @@
       resizeCanvas();
       
       // --- Ground ---
-      // Create a static ground at the bottom.
       const ground = Bodies.rectangle(canvas.width / 2, canvas.height - 20, canvas.width, 40, { 
         isStatic: true,
         render: { fillStyle: "#888" }
       });
       World.add(world, ground);
       
-      // --- Blender Fan Setup ---
-      // We'll create 3 distinct blades as rectangles and combine them into one composite body.
-      // Blade parameters:
-      const bladeWidth = 30;
-      const bladeLength = 120;
-      // Each blade will be a rectangle with its center offset so that one edge is at the composite center.
-      // For convenience, create each blade with its center at (0, -bladeLength/2).
-      function createBlade() {
-        return Bodies.rectangle(0, -bladeLength/2, bladeWidth, bladeLength, {
-          chamfer: { radius: 5 }  // Optional: round the corners a little.
-        });
-      }
-      
-      // Create three blades.
-      let blade1 = createBlade();
-      let blade2 = Body.rotate(createBlade(), 2 * Math.PI / 3);  // 120° rotation
-      let blade3 = Body.rotate(createBlade(), 4 * Math.PI / 3);  // 240° rotation
-      
-      // Create a composite fan body from the blades.
-      let fan = Body.create({
-        parts: [blade1, blade2, blade3],
-        isStatic: true,
+      // --- Blender Triangle Setup ---
+      // Create a triangle using Bodies.polygon.
+      // We'll create an equilateral triangle centered at (canvas.width/2, canvas.height/2)
+      // with a given radius.
+      const triangleRadius = 150;
+      let triangle = Bodies.polygon(canvas.width / 2, canvas.height / 2, 3, triangleRadius, {
+        isStatic: true,  // We'll control its rotation manually.
         render: { fillStyle: "#fff" }
       });
+      World.add(world, triangle);
       
-      // Initially place the fan at the center of the canvas.
-      Body.setPosition(fan, { x: canvas.width / 2, y: canvas.height / 2 });
-      World.add(world, fan);
-      
-      // Set a faster angular speed for the fan.
-      let fanRotation = 0;
-      const fanAngularSpeed = 0.1;  // Radians per frame
-      
-      // The fan follows the mouse cursor.
-      let fanPosition = { x: canvas.width / 2, y: canvas.height / 2 };
-      window.addEventListener("mousemove", function(e) {
-        fanPosition.x = e.clientX;
-        fanPosition.y = e.clientY;
-      });
+      // Set the rotation speed to twice the baseline.
+      // Here we set the angular speed to 0.1 radians per frame.
+      let triangleRotation = 0;
+      const angularSpeed = 0.1;  // Radians per frame
       
       // --- Falling Letters ---
       // Helper functions.
@@ -97,7 +72,7 @@
         const colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff", "#ffffff"];
         return colors[Math.floor(Math.random() * colors.length)];
       }
-      // Spawn letters at random positions at the top.
+      // Spawn letters at random x positions at the top.
       function spawnLetter() {
         const letter = randomLetter();
         const size = Common.random(30, 80);
@@ -108,6 +83,7 @@
           friction: 0.1,
           density: 0.001
         });
+        // Give a slight random initial angle.
         Body.setAngle(letterBody, Common.random(-0.3, 0.3));
         letterBody.customData = { letter: letter, size: size, color: randomColor() };
         World.add(world, letterBody);
@@ -119,15 +95,13 @@
       function render() {
         Engine.update(engine, 1000 / 60);
         
-        // Update fan rotation and position.
-        fanRotation += fanAngularSpeed;
-        Body.setAngle(fan, fanRotation);
-        Body.setPosition(fan, fanPosition);
+        // Update triangle rotation.
+        triangleRotation += angularSpeed;
+        Body.setAngle(triangle, triangleRotation);
         
-        // Clear the canvas.
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Render all bodies.
+        // Render each body.
         world.bodies.forEach(body => {
           if (body.customData && body.customData.letter) {
             // Render falling letters.
@@ -150,8 +124,8 @@
             });
             ctx.closePath();
             ctx.fill();
-          } else if (body === fan) {
-            // Render the fan as a filled shape.
+          } else if (body === triangle) {
+            // Render the triangle as a filled shape.
             ctx.fillStyle = "#fff";
             ctx.beginPath();
             body.vertices.forEach((v, i) => {
